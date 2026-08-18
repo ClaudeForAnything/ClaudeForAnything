@@ -85,12 +85,12 @@ Add `--with agents hooks mcp` for the other component folders.
 
 ## Step 6 — Register it in the catalog
 
-Add an entry to `marketplace/.claude-plugin/marketplace.json`:
+Add an entry to `.claude-plugin/marketplace.json` at the **repository root**:
 
 ```json
 {
   "name": "<name>",
-  "source": "./plugins/<name>",
+  "source": "./marketplace/plugins/<name>",
   "description": "<same one-liner>",
   "version": "0.1.0",
   "author": {
@@ -105,20 +105,20 @@ Add an entry to `marketplace/.claude-plugin/marketplace.json`:
 ```
 
 Sources are written from the marketplace root — the directory holding
-`.claude-plugin/`, which is `marketplace/`, not the repository root. Full field
+`.claude-plugin/`, which is the repository root. Full field
 reference: `${CLAUDE_PLUGIN_ROOT}/references/marketplace-entry.md`.
 
 ## Step 7 — Verify
 
 ```bash
 python "${CLAUDE_PLUGIN_ROOT}/scripts/scaffold.py" check
-claude plugin validate marketplace --strict
+claude plugin validate . --strict
 ```
 
 Both must pass. Then install it locally and confirm the skills appear:
 
 ```bash
-claude plugin marketplace add ./marketplace
+claude plugin marketplace add ClaudeForAnything/ClaudeForAnything
 claude plugin install <name>@claudeforanything
 claude plugin details <name>@claudeforanything
 ```

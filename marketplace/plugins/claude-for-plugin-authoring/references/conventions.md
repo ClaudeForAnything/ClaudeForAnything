@@ -58,8 +58,8 @@ When a skill genuinely needs Claude Code, say so in its `compatibility:` field.
 ## 4. Layout
 
 ```
+.claude-plugin/marketplace.json          # the catalog, at the repository root
 marketplace/
-├── .claude-plugin/marketplace.json     # the catalog
 ├── plugins/<plugin-name>/              # one directory per plugin
 │   ├── .claude-plugin/plugin.json
 │   ├── skills/<skill-name>/SKILL.md
@@ -74,12 +74,12 @@ them. They are plain Agent Skills, publishable on their own.
 
 ## 5. Registering a plugin
 
-Add an entry to `marketplace/.claude-plugin/marketplace.json` under `plugins`.
-Use an explicit relative source that starts with `./` and is written from the
-marketplace root (the directory holding `.claude-plugin/`):
+Add an entry to `.claude-plugin/marketplace.json` at the **repository root**.
+Use an explicit relative source that starts with `./`, written from the
+marketplace root — which is the repository root, not `marketplace/`:
 
 ```json
-{ "name": "crm-for-claude", "source": "./plugins/crm-for-claude" }
+{ "name": "crm-for-claude", "source": "./marketplace/plugins/crm-for-claude" }
 ```
 
-Then validate: `claude plugin validate marketplace --strict`.
+Then validate: `claude plugin validate . --strict`.

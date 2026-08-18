@@ -9,7 +9,7 @@
   "plugins": [
     {
       "name": "claude-for-plugin-authoring",
-      "source": "./plugins/claude-for-plugin-authoring",
+      "source": "./marketplace/plugins/claude-for-plugin-authoring",
       "description": "Author, scaffold, and review ClaudeForAnything plugins and Agent Skills. Use when creating or changing anything under marketplace/.",
       "version": "0.1.0",
       "author": {

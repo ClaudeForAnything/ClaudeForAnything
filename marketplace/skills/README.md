@@ -16,15 +16,23 @@ skills/<skill-name>/
 ```
 
 To make one installable from this marketplace, add a catalog entry in
-`../.claude-plugin/marketplace.json` pointing at the marketplace root:
+`../../.claude-plugin/marketplace.json` — at the repository root — pointing
+straight at the skill directory:
 
 ```json
 {
-  "name": "claude-for-<action>",
-  "source": "./",
-  "skills": ["./skills/<skill-name>"],
-  "strict": false
+  "name": "<skill-name>",
+  "source": "./marketplace/skills/<skill-name>"
 }
 ```
+
+A directory with a `SKILL.md` at its root, no `skills/` subdirectory, and no
+`skills` manifest field is loaded as a single-skill plugin, so no `plugin.json` is
+needed. The invocation name comes from the frontmatter `name`, not the install
+directory, which is why that field is required to match the directory name.
+
+Pointing an entry at the marketplace root instead (`"source": "./"`) would also
+work, but it copies the entire repository into every user's plugin cache. Use the
+per-skill source above.
 
 Use the `claude-for-plugin-authoring:new-skill` skill to write one.

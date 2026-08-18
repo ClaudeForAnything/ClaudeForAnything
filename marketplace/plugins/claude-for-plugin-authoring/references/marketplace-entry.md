@@ -2,10 +2,12 @@
 
 Distilled from `vendor_docs/claude_code/plugin-marketplaces.md`.
 
-Location: `marketplace/.claude-plugin/marketplace.json`.
-The **marketplace root** is the directory containing `.claude-plugin/` — for this
-repository that is `marketplace/`, not the repository root. Every relative plugin
-`source` resolves from there.
+Location: `.claude-plugin/marketplace.json` at the **repository root**.
+The **marketplace root** is the directory containing `.claude-plugin/`. Claude Code
+looks for it at the root of the cloned repository when a marketplace is added by
+`owner/repo`, so it cannot live in a subdirectory. Every relative plugin `source`
+resolves from there, which is why plugin sources here read
+`./marketplace/plugins/<name>`.
 
 ## Top level
 
@@ -47,7 +49,7 @@ accepted, plus the marketplace-only fields `source`, `category`, `tags`, `strict
 
 | Source        | Shape                              | Fields                             |
 | :------------ | :--------------------------------- | :--------------------------------- |
-| Relative path | `"./plugins/my-plugin"`            | —                                  |
+| Relative path | `"./marketplace/plugins/my-plugin"` | —                                 |
 | `github`      | object                             | `repo`, `ref?`, `sha?`             |
 | `url`         | object                             | `url`, `ref?`, `sha?`              |
 | `git-subdir`  | object                             | `url`, `path`, `ref?`, `sha?`      |
@@ -64,29 +66,36 @@ installs — but **not** when a user adds the marketplace by direct URL to
 
 ## Standalone skills from `marketplace/skills/`
 
-To publish a skill that has no plugin behind it, point the entry at the marketplace
-root and list the skill directory explicitly:
+To publish a skill that has no plugin behind it, point the entry straight at the
+skill directory:
 
 ```json
 {
-  "name": "claude-for-<action>",
-  "source": "./",
-  "skills": ["./skills/<skill-name>"],
-  "strict": false
+  "name": "<skill-name>",
+  "source": "./marketplace/skills/<skill-name>"
 }
 ```
 
-With a marketplace-root `source`, the listed paths are the complete set for that
-entry — other directories under `skills/` do not load. Listing `./skills/` itself
-keeps the full scan. `strict: false` is what lets the entry stand in for a
-`plugin.json` that does not exist.
+A directory with a `SKILL.md` at its root, no `skills/` subdirectory, and no
+`skills` manifest field is loaded as a single-skill plugin, so no `plugin.json` is
+needed. The invocation name comes from the frontmatter `name` rather than the
+install directory — which for a marketplace install is a version string that
+changes on every update.
 
-Note the trade-off: a marketplace-root source copies the whole `marketplace/`
-directory into the user's plugin cache. Fine while the marketplace is small; group
-standalone skills into one entry if that stops being true.
+There is a second form, pointing the entry at the marketplace root and listing
+subdirectories:
+
+```json
+{ "source": "./", "skills": ["./marketplace/skills/<skill-name>"], "strict": false }
+```
+
+With a marketplace-root `source` the listed paths are the complete set for that
+entry, and `strict: false` lets the entry stand in for a `plugin.json` that does
+not exist. **Do not use it here.** Because the marketplace root is the repository
+root, it would copy the entire repository into every user's plugin cache.
 
 ## Validate
 
 ```bash
-claude plugin validate marketplace --strict
+claude plugin validate . --strict
 ```

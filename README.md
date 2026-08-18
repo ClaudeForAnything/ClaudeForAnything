@@ -7,11 +7,10 @@ capabilities — and a CLI that exposes every one of them from a terminal.
 
 ## Install
 
-Clone the repository and add the marketplace from the local path:
+Add the marketplace, then install what you want from it:
 
 ```bash
-git clone https://github.com/ClaudeForAnything/ClaudeForAnything
-claude plugin marketplace add ./ClaudeForAnything/marketplace
+claude plugin marketplace add ClaudeForAnything/ClaudeForAnything
 claude plugin install claude-for-plugin-authoring@claudeforanything
 ```
 
@@ -84,7 +83,7 @@ Before opening a pull request:
 
 ```bash
 python marketplace/plugins/claude-for-plugin-authoring/scripts/scaffold.py check
-claude plugin validate ./marketplace --strict
+claude plugin validate . --strict
 ```
 
 ## License

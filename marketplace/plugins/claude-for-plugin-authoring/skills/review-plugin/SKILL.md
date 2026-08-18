@@ -17,7 +17,7 @@ compatibility: Designed for the ClaudeForAnything repository. Requires Python 3.
 
 ```bash
 python "${CLAUDE_PLUGIN_ROOT}/scripts/scaffold.py" check
-claude plugin validate marketplace --strict
+claude plugin validate . --strict
 ```
 
 The two cover different ground:
@@ -106,7 +106,7 @@ the skill descriptions are too long or there are too many skills for one plugin.
 ## Step 7 — Install it clean
 
 ```bash
-claude plugin marketplace add ./marketplace
+claude plugin marketplace add ClaudeForAnything/ClaudeForAnything
 claude plugin install <name>@claudeforanything
 claude --debug            # look for the plugin-loading lines
 ```

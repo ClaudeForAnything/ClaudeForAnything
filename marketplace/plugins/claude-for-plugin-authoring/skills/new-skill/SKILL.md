@@ -107,7 +107,7 @@ stay portable.
 
 ```bash
 python "${CLAUDE_PLUGIN_ROOT}/scripts/scaffold.py" check
-claude plugin validate marketplace --strict
+claude plugin validate . --strict
 ```
 
 `check` enforces the frontmatter-name-matches-directory rule that the JSON schema

@@ -24,6 +24,11 @@ SKILL_NAME_RE = re.compile(r"^(?!-)(?!.*--)[a-z0-9-]{1,64}(?<!-)$")
 ACTION_PREFIX = "claude-for-"
 TOOL_SUFFIX = "-for-claude"
 
+# The marketplace root is the repository root, because Claude Code looks for
+# .claude-plugin/marketplace.json there when a marketplace is added by owner/repo.
+# Plugins and standalone skills live one level down, under CONTENT_DIR.
+CONTENT_DIR = "marketplace"
+
 
 def marketplace_root() -> Path:
     """Walk up from this file to the directory holding .claude-plugin/marketplace.json."""
@@ -31,6 +36,14 @@ def marketplace_root() -> Path:
         if (parent / ".claude-plugin" / "marketplace.json").is_file():
             return parent
     raise SystemExit("error: could not locate the marketplace root from this script")
+
+
+def plugins_dir(root: Path) -> Path:
+    return root / CONTENT_DIR / "plugins"
+
+
+def skills_dir(root: Path) -> Path:
+    return root / CONTENT_DIR / "skills"
 
 
 def check_name(name: str, *, kind: str) -> list[str]:
@@ -152,7 +165,7 @@ def cmd_plugin(args: argparse.Namespace) -> int:
         return 1
 
     root = marketplace_root()
-    plugin_dir = root / "plugins" / args.name
+    plugin_dir = plugins_dir(root) / args.name
     components = args.with_ or []
 
     write(
@@ -189,9 +202,10 @@ def cmd_plugin(args: argparse.Namespace) -> int:
         )
 
     catalog = root / ".claude-plugin" / "marketplace.json"
+    source = f"./{CONTENT_DIR}/plugins/{args.name}"
     print()
     print(f"Next: register {args.name} in {catalog}")
-    print(f'  {{ "name": "{args.name}", "source": "./plugins/{args.name}" }}')
+    print(f'  {{ "name": "{args.name}", "source": "{source}" }}')
     print(f"Then: claude plugin validate {root} --strict")
     return 0
 
@@ -205,12 +219,12 @@ def cmd_skill(args: argparse.Namespace) -> int:
 
     root = marketplace_root()
     if args.plugin:
-        base = root / "plugins" / args.plugin
+        base = plugins_dir(root) / args.plugin
         if not base.is_dir():
             raise SystemExit(f"error: no such plugin: {base}")
         target = base / "skills" / args.name
     else:
-        target = root / "skills" / args.name
+        target = skills_dir(root) / args.name
 
     write(target / "SKILL.md", skill_md(args.name, args.description), force=args.force)
     return 0
@@ -223,18 +237,14 @@ def cmd_check(_args: argparse.Namespace) -> int:
     listed = {entry["name"] for entry in catalog.get("plugins", [])}
     failures = 0
 
-    plugins_dir = root / "plugins"
-    on_disk = (
-        {p.name for p in plugins_dir.iterdir() if p.is_dir()}
-        if plugins_dir.is_dir()
-        else set()
-    )
+    plugins = plugins_dir(root)
+    on_disk = {p.name for p in plugins.iterdir() if p.is_dir()} if plugins.is_dir() else set()
 
     for name in sorted(on_disk):
         for problem in check_name(name, kind="plugin"):
             print(f"FAIL naming   {problem}")
             failures += 1
-        if not (plugins_dir / name / ".claude-plugin" / "plugin.json").is_file():
+        if not (plugins / name / ".claude-plugin" / "plugin.json").is_file():
             print(f"FAIL manifest {name}: missing .claude-plugin/plugin.json")
             failures += 1
 
@@ -242,9 +252,14 @@ def cmd_check(_args: argparse.Namespace) -> int:
         print(f"FAIL catalog  {name}: on disk but not listed in marketplace.json")
         failures += 1
     for name in sorted(listed - on_disk):
-        print(f"WARN catalog  {name}: listed in marketplace.json but not under plugins/")
+        print(
+            f"WARN catalog  {name}: listed in marketplace.json "
+            f"but not under {CONTENT_DIR}/plugins/"
+        )
 
-    for path in sorted(root.glob("**/SKILL.md")):
+    # Scoped to CONTENT_DIR on purpose: the marketplace root is the repository
+    # root, and globbing it would walk vendor/ and vendor_docs/.
+    for path in sorted((root / CONTENT_DIR).glob("**/SKILL.md")):
         text = path.read_text("utf-8")
         dir_name = path.parent.name
         match = re.search(r"^name:\s*(\S+)\s*$", text, re.MULTILINE)

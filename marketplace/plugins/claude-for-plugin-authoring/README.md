@@ -57,6 +57,6 @@ naming conventions, plugins present on disk but missing from the catalog, and
 ## Install
 
 ```bash
-claude plugin marketplace add ./marketplace
+claude plugin marketplace add ClaudeForAnything/ClaudeForAnything
 claude plugin install claude-for-plugin-authoring@claudeforanything
 ```
