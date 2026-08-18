@@ -2,7 +2,7 @@
 name: new-skill
 description: Write an agentskills.io-compliant Agent Skill, either inside a ClaudeForAnything plugin or standalone under marketplace/skills/. Use when adding or rewriting a SKILL.md, when a skill is not firing when it should, or when deciding what belongs in SKILL.md versus references/.
 license: MIT
-compatibility: Designed for the ClaudeForAnything repository. Requires Python 3.12 for the scaffold script.
+compatibility: Designed for the ClaudeForAnything repository. Requires the claudeforanything CLI on PATH (uv tool install ./cli).
 ---
 
 # Write an Agent Skill
@@ -37,11 +37,11 @@ plugin name already carries the domain. Keep the skill name to the verb:
 
 ```bash
 # Inside a plugin
-python "${CLAUDE_PLUGIN_ROOT}/scripts/scaffold.py" skill <name> \
+claudeforanything claude-for-plugin-authoring new-skill <name> \
   --plugin <plugin-name> --description "<...>"
 
 # Standalone
-python "${CLAUDE_PLUGIN_ROOT}/scripts/scaffold.py" skill <name> --description "<...>"
+claudeforanything claude-for-plugin-authoring new-skill <name> --description "<...>"
 ```
 
 ## Step 4 — Write the description
@@ -106,7 +106,7 @@ stay portable.
 ## Step 7 — Verify
 
 ```bash
-python "${CLAUDE_PLUGIN_ROOT}/scripts/scaffold.py" check
+claudeforanything claude-for-plugin-authoring check
 claude plugin validate . --strict
 ```
 

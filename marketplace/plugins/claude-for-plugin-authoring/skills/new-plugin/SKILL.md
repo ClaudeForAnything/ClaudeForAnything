@@ -2,7 +2,7 @@
 name: new-plugin
 description: Create a new plugin in the ClaudeForAnything marketplace, from naming through manifest, skills, CLI surface, and catalog registration. Use when adding a plugin under marketplace/plugins/, when asked to "make a plugin for X", or when deciding whether something should be claude-for-X or X-for-claude.
 license: MIT
-compatibility: Designed for the ClaudeForAnything repository. Requires Python 3.12 and the Claude Code CLI for validation.
+compatibility: Designed for the ClaudeForAnything repository. Requires the claudeforanything CLI on PATH (uv tool install ./cli) and the Claude Code CLI for validation.
 ---
 
 # Create a ClaudeForAnything plugin
@@ -56,7 +56,7 @@ lifted into the CLI. Do not pretend the script is the finished design.
 ## Step 4 — Scaffold
 
 ```bash
-python "${CLAUDE_PLUGIN_ROOT}/scripts/scaffold.py" plugin <name> \
+claudeforanything claude-for-plugin-authoring new-plugin <name> \
   --description "<what it does and when to use it>" \
   --with skills
 ```
@@ -111,7 +111,7 @@ reference: `${CLAUDE_PLUGIN_ROOT}/references/marketplace-entry.md`.
 ## Step 7 — Verify
 
 ```bash
-python "${CLAUDE_PLUGIN_ROOT}/scripts/scaffold.py" check
+claudeforanything claude-for-plugin-authoring check
 claude plugin validate . --strict
 ```
 

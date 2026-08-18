@@ -32,27 +32,28 @@ reference, read the vendor doc — never guess a signature.
 
 ## CLI
 
+The capability lives in the [`claudeforanything` CLI](../../../cli/), per the
+repository's CLI-first rule. This plugin's skills drive it; they do not carry a
+bundled copy of the logic.
+
 ```bash
 claudeforanything claude-for-plugin-authoring --help
-claudeforanything claude-for-plugin-authoring scaffold plugin <name> --description "..."
+claudeforanything claude-for-plugin-authoring new-plugin <name> --description "..." [--with skills agents hooks mcp]
+claudeforanything claude-for-plugin-authoring new-skill <name> --description "..." [--plugin <plugin-name>]
 claudeforanything claude-for-plugin-authoring check
 ```
 
-**Status: not implemented.** `cli/` is empty, so the logic currently lives in
-`scripts/scaffold.py`, written stdlib-only and CLI-shaped so it lifts into the CLI
-unchanged. This is debt, and it is the first thing to pay down once `cli/` exists.
-
-Until then:
+Every command accepts `--json`, so results compose:
 
 ```bash
-python scripts/scaffold.py plugin <name> --description "..." [--with skills agents hooks mcp]
-python scripts/scaffold.py skill <name> --description "..." [--plugin <plugin-name>]
-python scripts/scaffold.py check
+claudeforanything claude-for-plugin-authoring check --json | jq -r '.data.failures[].message'
 ```
 
 `check` enforces what `claude plugin validate` does not: the ClaudeForAnything
 naming conventions, plugins present on disk but missing from the catalog, and
 `SKILL.md` frontmatter names matching their directories.
+
+**Requires the CLI on your PATH.** From a clone: `uv tool install ./cli`.
 
 ## Install
 

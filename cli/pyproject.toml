@@ -1,0 +1,36 @@
+[project]
+name = "claudeforanything"
+version = "0.1.0"
+description = "The ClaudeForAnything CLI. Every plugin, tool, and MCP server in the marketplace, usable from a terminal."
+readme = "README.md"
+requires-python = ">=3.12"
+license = "MIT"
+authors = [{ name = "Emerick @ ClaudeForAnything", email = "emerick@claudeforanything.com" }]
+keywords = ["claude", "cli", "agent", "skills", "marketplace"]
+
+dependencies = ["typer==0.27.1"]
+
+[project.urls]
+Homepage = "https://github.com/ClaudeForAnything/ClaudeForAnything"
+Repository = "https://github.com/ClaudeForAnything/ClaudeForAnything"
+
+[project.scripts]
+claudeforanything = "claudeforanything.main:app"
+
+[dependency-groups]
+dev = ["pytest==9.1.1"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/claudeforanything"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.pyright]
+venvPath = "."
+venv = ".venv"
+extraPaths = ["src"]

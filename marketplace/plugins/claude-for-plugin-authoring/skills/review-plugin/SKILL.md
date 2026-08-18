@@ -2,7 +2,7 @@
 name: review-plugin
 description: Review a ClaudeForAnything plugin or the whole marketplace against the naming conventions, the plugin.json and marketplace.json schemas, the CLI-first rule, and the Agent Skill spec. Use before committing changes under marketplace/, when a plugin fails to load, or when a skill does not appear after install.
 license: MIT
-compatibility: Designed for the ClaudeForAnything repository. Requires Python 3.12 and the Claude Code CLI.
+compatibility: Designed for the ClaudeForAnything repository. Requires the claudeforanything CLI on PATH (uv tool install ./cli) and the Claude Code CLI for validation.
 ---
 
 # Review a plugin
@@ -16,7 +16,7 @@ compatibility: Designed for the ClaudeForAnything repository. Requires Python 3.
 ## Step 1 — Run the automated checks
 
 ```bash
-python "${CLAUDE_PLUGIN_ROOT}/scripts/scaffold.py" check
+claudeforanything claude-for-plugin-authoring check
 claude plugin validate . --strict
 ```
 
@@ -24,8 +24,15 @@ The two cover different ground:
 
 | Checker            | Catches                                                                        |
 | :----------------- | :------------------------------------------------------------------------------ |
-| `scaffold.py check` | ClaudeForAnything naming, missing manifests, plugins on disk but absent from the catalog, `SKILL.md` frontmatter name not matching its directory |
+| `claudeforanything claude-for-plugin-authoring check` | ClaudeForAnything naming, missing manifests, plugins on disk but absent from the catalog, `SKILL.md` frontmatter name not matching its directory |
 | `claude plugin validate --strict` | JSON schema errors, unrecognized and misspelled manifest fields, bad hook config |
+
+Every CLI command takes `--json`, which emits `{"ok": ..., "data": ...}` on
+stdout. Use it when you want to act on the findings rather than read them:
+
+```bash
+claudeforanything claude-for-plugin-authoring check --json | jq -r '.data.failures[].message'
+```
 
 `--strict` turns warnings into errors, which is what you want here: it catches a
 field name that is one character off from a real one, which would otherwise be

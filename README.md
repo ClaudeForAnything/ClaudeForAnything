@@ -75,14 +75,13 @@ Install `claude-for-plugin-authoring` and use its skills — they encode the
 conventions, the schemas, and the verification steps.
 
 ```bash
-python marketplace/plugins/claude-for-plugin-authoring/scripts/scaffold.py \
-  plugin <name> --description "..."
+claudeforanything claude-for-plugin-authoring new-plugin <name> --description "..."
 ```
 
 Before opening a pull request:
 
 ```bash
-python marketplace/plugins/claude-for-plugin-authoring/scripts/scaffold.py check
+claudeforanything claude-for-plugin-authoring check
 claude plugin validate . --strict
 ```
 
