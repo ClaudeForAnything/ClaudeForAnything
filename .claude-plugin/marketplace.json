@@ -30,6 +30,31 @@
         "authoring",
         "claude-code"
       ]
+    },
+    {
+      "name": "emails-for-claude",
+      "source": "./marketplace/plugins/emails-for-claude",
+      "description": "Read, search, and send email over IMAP, POP3 and SMTP, with credentials kept in the OS keyring. Use when Claude needs access to a mailbox.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Emerick @ ClaudeForAnything",
+        "email": "emerick@claudeforanything.com"
+      },
+      "license": "GPL-3.0-or-later",
+      "category": "productivity",
+      "keywords": [
+        "email",
+        "imap",
+        "pop3",
+        "smtp",
+        "inbox",
+        "keyring"
+      ],
+      "tags": [
+        "email",
+        "communication",
+        "claude-code"
+      ]
     }
   ]
 }

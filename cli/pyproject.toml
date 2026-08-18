@@ -8,7 +8,7 @@ license = "GPL-3.0-or-later"
 authors = [{ name = "Emerick @ ClaudeForAnything", email = "emerick@claudeforanything.com" }]
 keywords = ["claude", "cli", "agent", "skills", "marketplace"]
 
-dependencies = ["typer==0.27.1"]
+dependencies = ["typer==0.27.1", "keyring==25.7.0"]
 
 [project.urls]
 Homepage = "https://github.com/ClaudeForAnything/ClaudeForAnything"
