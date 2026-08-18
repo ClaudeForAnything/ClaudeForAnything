@@ -1,0 +1,36 @@
+# --- Internal only: never published ---
+# Upstream git repos, cloned locally so Claude reads accurate signatures.
+/vendor/
+# Local cache of vendor documentation (~900 MB, 6k files). Third-party content.
+/vendor_docs/
+# Working notes.
+/claude_notes/
+/emerick_notes/
+# Internal project instructions, including the non-public tagline.
+/CLAUDE.md
+
+# --- Claude Code local config ---
+.claude/settings.local.json
+.claude/*.local.json
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+build/
+dist/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# --- OS and editors ---
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+*.swp
+*~

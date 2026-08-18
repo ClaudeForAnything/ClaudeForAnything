@@ -1,0 +1,35 @@
+{
+  "name": "claudeforanything",
+  "description": "Let Claude handle everything. Plugins and skills that give Claude real capabilities instead of another SaaS tab.",
+  "version": "0.1.0",
+  "owner": {
+    "name": "Emerick @ ClaudeForAnything",
+    "email": "contact@claudeforanything.com"
+  },
+  "plugins": [
+    {
+      "name": "claude-for-plugin-authoring",
+      "source": "./plugins/claude-for-plugin-authoring",
+      "description": "Author, scaffold, and review ClaudeForAnything plugins and Agent Skills. Use when creating or changing anything under marketplace/.",
+      "version": "0.1.0",
+      "author": {
+        "name": "Emerick @ ClaudeForAnything",
+        "email": "emerick@claudeforanything.com"
+      },
+      "license": "MIT",
+      "category": "development",
+      "keywords": [
+        "plugin",
+        "skill",
+        "authoring",
+        "scaffold",
+        "marketplace"
+      ],
+      "tags": [
+        "meta",
+        "authoring",
+        "claude-code"
+      ]
+    }
+  ]
+}
