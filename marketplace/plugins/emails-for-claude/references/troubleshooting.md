@@ -30,6 +30,7 @@ wrong host, wrong credential, and provider policy.
 | `no_keyring_backend` | No OS credential store (headless Linux, CI) | Install SecretStorage or KWallet, or export `EMAILS_FOR_CLAUDE_PASSWORD_<ACCOUNT>` |
 | `keyring_error` | The store refused | Usually a locked keyring — unlock the session and retry |
 | `bad_store` / `store_version` | `accounts.json` is corrupt or from a newer CLI | Inspect the path from `account list --json`; it holds no secrets, so it is safe to delete and rebuild |
+| `no_pop3_preset` | `--protocol pop3` for a provider whose preset declares no POP3 server | Pass `--imap-host` (and `--imap-port`/`--imap-security`) with the documented settings, or drop `--protocol pop3` |
 
 ## Connection
 
@@ -64,9 +65,10 @@ the name on the certificate rather than reaching for `--insecure-tls`. Reserve
 
 | Code | Cause |
 | :--- | :---- |
-| `folder_not_found` | Folder name wrong or not selectable | 
+| `folder_not_found` | Folder name wrong or not selectable |
 | `message_not_found` | UID gone, or from a different folder |
 | `not_imap` | An IMAP-only command on a POP3 account |
+| `filters_unsupported` | `inbox` filters on a POP3 account, which has no server-side search |
 | `invalid_date` | `--since` / `--before` is not `YYYY-MM-DD` |
 | `invalid_format` | `--format` is not text, html, raw or headers |
 
@@ -78,17 +80,57 @@ UIDs are per-folder. A UID from `inbox --folder Archive` is meaningless against
 `INBOX`, and that is what `message_not_found` usually means. UIDs are stable
 within a folder, unlike sequence numbers, which is why every command uses them.
 
+## Deleting and moving
+
+| Code | Cause |
+| :--- | :---- |
+| `confirmation_required` | `--purge`, or POP3 deletion, without `--yes` |
+| `unscoped_expunge` | The only available EXPUNGE would erase other messages too |
+| `no_trash_folder` | No Trash mailbox found and none configured |
+| `already_trash` | Deleting from the Trash mailbox itself |
+
+**`unscoped_expunge` is a refusal, not a failure — nothing was destroyed.**
+
+Plain IMAP `EXPUNGE` is mailbox-wide: it permanently removes *every* message
+carrying the `\Deleted` flag in the selected mailbox, not only the UIDs the
+command was given. RFC 4315 `UID EXPUNGE` is the scoped version, and servers
+advertise it as `UIDPLUS`.
+
+So on a server without UIDPLUS, when other messages in the folder are already
+flagged deleted — usually by another client — the CLI refuses rather than taking
+them with it. Options, in order of preference:
+
+1. Drop `--purge` and let `delete` move the messages to Trash.
+2. Clear the other flags first: `flag <uids> --remove '\Deleted'`, using
+   `search --query DELETED` to find them.
+3. Accept that the server cannot do a scoped purge, and do it from a client
+   that can.
+
+`move` hits the same limitation and degrades instead of refusing, because the
+copy at the destination has already succeeded by that point. Check
+`.data.sources_removed`: when it is `false`, the originals are still in the
+source folder with the `\Deleted` flag set, and the operation is a copy rather
+than a move.
+
 ## Sending
 
 | Code | Cause |
 | :--- | :---- |
-| `no_recipients` | No `--to`, `--cc` or `--bcc` |
-| `invalid_address` | A recipient has no `@` |
+| `no_recipients` | No `--to`, `--cc` or `--bcc`, or none of them parsed |
+| `invalid_address` | A recipient is not a plausible addr-spec |
+| `ambiguous_address` | One option value expands into several recipients with no comma |
 | `conflicting_body` | More than one of `--body`, `--body-file`, `--body-stdin` |
 | `invalid_header` | `--header` is not `Name: value` |
 | `recipients_refused` | Every recipient rejected |
 | `sender_refused` | The server refused the From address |
 | `attachment_not_found` | No such file |
+
+**`ambiguous_address`** guards a real hazard. Address parsing here is lenient,
+because inbound mail is malformed constantly — but lenient parsing reads
+`--to 'a@x.com <b@evil.com>'` as *two* recipients, and a person approving the
+draft sees one. Anything that expands without a comma to justify it is refused.
+Write `--to 'a@x.com, b@x.com'`, or pass `--to` twice. Semicolon-separated
+lists are refused for the same reason.
 
 **`sender_refused`** means the envelope sender does not match the authenticated
 account. Relays generally insist the two agree; check `--address` on the account
@@ -108,7 +150,9 @@ Not bugs — the protocol has no such feature:
 
 - one mailbox, so `folders` and `--folder` do not apply;
 - no flags, so `flag` is unavailable and everything reads as unseen;
-- no server-side search, so `inbox` filters are ignored and it says so;
+- no server-side search, so `inbox` with any filter fails with
+  `filters_unsupported` rather than returning the whole maildrop as though it
+  had matched;
 - no move;
 - deletion is permanent and takes effect when the session ends, which is why
   `delete` on a POP3 account demands `--yes`;

@@ -222,6 +222,16 @@ class Criteria:
         """True when any term carries non-ASCII and CHARSET UTF-8 is required."""
         return any(not term.isascii() for term in self.terms())
 
+    def is_empty(self) -> bool:
+        """True when no filter was asked for, so this matches everything.
+
+        POP3 has no server-side search at all, and answering a filtered query
+        with unfiltered results would be a wrong answer wearing a success
+        envelope. The POP3 path uses this to tell "list the mailbox" apart from
+        "find these messages" and refuse only the second.
+        """
+        return self.terms() == [b"ALL"]
+
     def describe(self) -> str:
         return " ".join(term.decode("utf-8", "replace") for term in self.terms())
 
@@ -393,6 +403,15 @@ class Imap:
     def search(self, folder: str, criteria: Criteria) -> list[str]:
         """Return matching UIDs, oldest first."""
         self.select(folder, readonly=True)
+        return self._search_selected(criteria)
+
+    def _search_selected(self, criteria: Criteria) -> list[str]:
+        """SEARCH against whatever is already selected.
+
+        Split out so a caller that has deliberately selected read-write — such
+        as `purge()` checking for collateral — is not silently flipped back to
+        read-only mid-operation by a helper.
+        """
         terms = criteria.terms()
         args: list[Any] = ["CHARSET", "UTF-8", *terms] if criteria.needs_utf8() else list(terms)
         try:
@@ -500,15 +519,17 @@ class Imap:
             self.store(folder, [uid], "+FLAGS", ["\\Seen"])
         return message_mod.parse(raw), meta
 
-    def fetch_raw(self, folder: str, uid: str) -> bytes:
-        """The message exactly as the server holds it."""
-        self.select(folder, readonly=True)
+    def fetch_raw(self, folder: str, uid: str, *, mark_seen: bool = False) -> bytes:
+        """The message exactly as the server holds it, byte for byte."""
+        self.select(folder, readonly=not mark_seen)
         payloads = self._fetch_parts([uid], "(UID BODY.PEEK[])")
         raw = payloads.get(uid)
         if raw is None:
             raise CliError(
                 f"no message with UID {uid} in {folder!r}", code="message_not_found"
             )
+        if mark_seen:
+            self.store(folder, [uid], "+FLAGS", ["\\Seen"])
         return raw
 
     # -- mutating ---------------------------------------------------------
@@ -522,10 +543,13 @@ class Imap:
         self._uid("STORE", ",".join(uids), operation, f"({' '.join(flags)})")
 
     def move(self, folder: str, uids: Sequence[str], destination: str) -> str:
-        """Move messages, returning the method used ('move' or 'copy+expunge').
+        """Move messages, returning the method used.
 
-        RFC 6851 MOVE is atomic and preferred. Servers without it need the old
-        COPY, mark \\Deleted, EXPUNGE dance.
+        RFC 6851 MOVE is atomic and preferred. Without it the old COPY, mark
+        \\Deleted, expunge dance is needed — and that last step is the dangerous
+        one, so `purge()` decides how to do it safely rather than reaching for
+        plain EXPUNGE. Returns 'move', 'copy+uid-expunge', or 'copy+flag' when
+        the source copies had to be left flagged rather than removed.
         """
         if not uids:
             return "move"
@@ -534,12 +558,66 @@ class Imap:
         if "MOVE" in self.capabilities:
             self._uid("MOVE", uid_set, mailbox_arg(destination))
             return "move"
+
         self._uid("COPY", uid_set, mailbox_arg(destination))
         self._uid("STORE", uid_set, "+FLAGS", "(\\Deleted)")
-        self.expunge()
-        return "copy+expunge"
+        # The copy already exists at the destination. If the source copies
+        # cannot be removed without endangering other messages, leaving them
+        # flagged is the only non-destructive outcome — never widen the blast
+        # radius to finish a move.
+        removed = self.purge(folder, uids, allow_unscoped=False)
+        return "copy+uid-expunge" if removed else "copy+flag"
 
-    def expunge(self) -> None:
+    def deleted_uids(self, folder: str) -> list[str]:
+        """UIDs already carrying \\Deleted in a mailbox."""
+        self.select(folder, readonly=False)
+        return self._search_selected(Criteria(raw="DELETED"))
+
+    def purge(self, folder: str, uids: Sequence[str], *, allow_unscoped: bool = True
+              ) -> bool:
+        """Expunge exactly these UIDs. Returns False if it could not be done safely.
+
+        Plain EXPUNGE is **mailbox-wide**: it removes every message carrying
+        \\Deleted in the selected mailbox, not just the ones this command
+        touched. A message another client flagged an hour ago would be destroyed
+        as collateral, which is unacceptable for a UID-scoped operation.
+
+        So, in order of preference:
+
+        1. RFC 4315 UID EXPUNGE, which is scoped by definition.
+        2. Plain EXPUNGE, but only after confirming that nothing *else* in the
+           mailbox is flagged \\Deleted, which makes the two equivalent.
+        3. Refuse — or, when `allow_unscoped` is False, decline quietly and let
+           the caller report what it did instead.
+        """
+        if not uids:
+            return True
+        self.select(folder, readonly=False)
+
+        if "UIDPLUS" in self.capabilities:
+            self._uid("EXPUNGE", ",".join(uids))
+            return True
+
+        collateral = sorted(set(self.deleted_uids(folder)) - set(uids), key=int)
+        if not collateral:
+            self._expunge_all()
+            return True
+
+        if not allow_unscoped:
+            return False
+
+        raise CliError(
+            f"refusing to expunge: this server does not support UIDPLUS, so the "
+            f"only available EXPUNGE would also permanently erase "
+            f"{len(collateral)} other message(s) already flagged deleted in "
+            f"{folder!r} (UIDs {', '.join(collateral[:10])}"
+            f"{', …' if len(collateral) > 10 else ''}). Clear or restore those "
+            "first, or move the messages to Trash instead.",
+            code="unscoped_expunge",
+        )
+
+    def _expunge_all(self) -> None:
+        """Mailbox-wide EXPUNGE. Only reachable through `purge()`, which checks first."""
         try:
             typ, _ = self._conn.expunge()
         except imaplib.IMAP4.error as error:

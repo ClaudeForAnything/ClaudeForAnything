@@ -102,10 +102,14 @@ claudeforanything emails-for-claude attachments <uid> --save ./downloads --json
 claudeforanything emails-for-claude attachments <uid> --save ./downloads --only 2
 ```
 
-`--only` takes the index from the listing or the exact filename. Filenames are
-attacker-controlled, so only the basename is ever used — an attachment named
-`../../.bashrc` lands in the target directory as `.bashrc`. Still choose a
-scratch directory rather than a directory that matters.
+`--only` takes the index from the listing or the exact filename.
+
+Filenames are attacker-controlled, so only the basename is ever used — an
+attachment named `../../.bashrc` lands in the target directory as `.bashrc`.
+Duplicates are also handled: two parts both named `report.pdf` are saved as
+`report.pdf` and `report-2.pdf` rather than one silently replacing the other,
+so trust `.data.saved` for the real paths instead of assuming the original
+filenames. Still choose a scratch directory rather than one that matters.
 
 ## Step 4 — Report
 
@@ -131,6 +135,16 @@ claudeforanything emails-for-claude delete 101
 claudeforanything emails-for-claude delete 101 --purge --yes
 ```
 
+Two outcomes worth reading rather than assuming:
+
+- `--purge` can fail with `unscoped_expunge`. That means the server lacks
+  UIDPLUS and other messages in the folder are already flagged deleted, so the
+  only available EXPUNGE would erase those too. Nothing was destroyed. Move to
+  Trash instead, or deal with the other flagged messages first.
+- `move` reports `"sources_removed": false` when the same limitation applies.
+  The copies arrived at the destination and the originals are **still in the
+  source folder**, flagged. Say so — do not describe it as a completed move.
+
 Bulk operations compose:
 
 ```bash
@@ -147,10 +161,15 @@ match count first, act second.
 ## POP3 accounts
 
 If `.data.protocol` is `pop3`, tell the user what is missing rather than working
-around it silently: one mailbox, no flags, no server-side search (filters are
-ignored), no move, and deletion is immediate and permanent. Listing is also slow,
-because every summary is a separate round trip. Suggest switching the account to
-IMAP if the provider offers it.
+around it silently: one mailbox, no flags, no move, and deletion is immediate
+and permanent. Listing is also slow, because every summary is a separate round
+trip, so keep `--limit` small.
+
+There is **no server-side search**, so `inbox` with any filter fails with
+`filters_unsupported` rather than returning the whole maildrop as if it had
+matched. That is deliberate: a wrong answer inside a success envelope is worse
+than an error. Drop the filters to list the mailbox, and suggest re-adding the
+account over IMAP if the provider offers it.
 
 ## Notes
 

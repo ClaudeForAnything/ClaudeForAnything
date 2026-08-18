@@ -98,5 +98,18 @@ store. No mail is cached on disk.
 
 IMAP is the supported path and everything works there. POP3 is available for
 accounts that offer nothing better, but the protocol has one mailbox, no flags,
-no server-side search, and deletion is permanent; the CLI reports those limits
-rather than pretending otherwise.
+no server-side search, and deletion is permanent. The CLI reports those limits
+rather than working around them: a filtered `inbox` on a POP3 account fails
+instead of quietly returning the whole maildrop.
+
+Two IMAP behaviours are worth knowing because they are deliberate refusals:
+
+- `delete --purge`, and the no-MOVE path of `move`, need a *scoped* expunge.
+  Plain `EXPUNGE` is mailbox-wide and would erase every message flagged deleted,
+  not just the ones named. With `UIDPLUS` the CLI uses `UID EXPUNGE`; without
+  it, it proceeds only when nothing else is flagged, and otherwise refuses or
+  degrades to a copy rather than widening the blast radius.
+- Outbound recipients are parsed leniently but checked strictly. One `--to`
+  value that expands into several addresses without a comma is refused, because
+  `a@x.com <b@evil.com>` is two recipients and only one is visible to whoever
+  approves the draft.

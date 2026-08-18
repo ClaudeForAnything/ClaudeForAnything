@@ -17,8 +17,10 @@ import mimetypes
 from dataclasses import dataclass
 from datetime import datetime
 from email.message import EmailMessage
-from email.utils import getaddresses, parsedate_to_datetime
+from email.utils import parsedate_to_datetime
 from typing import Any, Iterable
+
+from .compat import get_addresses
 
 #: `default` gives us EmailMessage with decoded headers and get_body(). `compat32`
 #: would hand back raw encoded-words, which is exactly what we do not want.
@@ -75,7 +77,7 @@ def addresses(msg: EmailMessage, name: str) -> list[dict[str, str]]:
     if not values:
         return []
     try:
-        pairs = getaddresses([str(v) for v in values], strict=False)
+        pairs = get_addresses([str(v) for v in values])
     except Exception:  # pragma: no cover - defective header objects
         return []
     return [

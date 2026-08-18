@@ -3,61 +3,130 @@
 """Composing and sending, over `email.message` and `smtplib`.
 
 Composition and transmission are kept apart on purpose. `compose()` is pure — it
-takes a `Draft` and returns an `EmailMessage`, touching no socket — which is
-what makes `send --dry-run` an honest preview: the bytes it prints are the exact
-bytes that would go on the wire.
+takes a `Draft` and returns an `EmailMessage` and touches no socket — and
+`serialize()` produces the transmitted form from that message. `send --dry-run`
+prints what `serialize()` returns rather than `as_string()`, so the preview is
+the flattened payload rather than a near-miss (see `serialize` for the one
+documented divergence).
 
-`Bcc` is set on the draft but stripped from the message before sending, since
-the header would otherwise be delivered to every recipient and defeat the point.
+`Bcc` is set on the draft and removed during serialization, since the header
+would otherwise be delivered to every recipient and defeat the point.
 """
 
 from __future__ import annotations
 
+import copy
+import email.generator
+import io
 import mimetypes
+import re
 import smtplib
 import socket
 import ssl
 from dataclasses import dataclass, field
 from email.message import EmailMessage
-from email.utils import formatdate, getaddresses, make_msgid, parseaddr
+from email.utils import formatdate, make_msgid
 from pathlib import Path
 from typing import Any, Sequence
 
 from ..output import CliError
 from .accounts import Account
+from .compat import get_addresses, parse_address
 from .imap import ssl_context
 from .presets import PLAIN, SSL, STARTTLS
 
 DEFAULT_TIMEOUT = 30.0
 
+#: A conservative addr-spec: one @, no whitespace, and none of the characters
+#: that separate or delimit addresses in a header. Deliberately stricter than
+#: RFC 5321 — quoted local parts like `"a b"@x.com` are legal and rejected here,
+#: because an outbound recipient that needs them is far rarer than a mistake
+#: that looks like one.
+_ADDR_SPEC_RE = re.compile(r"^[^\s<>,;:\"\\]+@[^\s<>,;:\"\\@]+$")
 
-def split_addresses(values: Sequence[str]) -> list[str]:
+
+def split_addresses(values: Sequence[str], label: str = "address") -> list[str]:
     """Flatten repeated options and comma-separated lists into one address list.
 
     `--to a@x --to "b@x, c@x"` and `--to a@x,b@x,c@x` have to mean the same
     thing, because both read naturally and Claude will write both.
+
+    This is also the only place that sees one raw option value before it becomes
+    several recipients, so it is where the ambiguity check has to happen. Lenient
+    parsing — required for cross-version consistency, see `compat.py` — turns
+    `a@x.com <b@evil.com>` into *two* recipients with no comma in sight. That is
+    a recipient-smuggling shape rather than a typo, and mail delivered to an
+    address the user never saw cannot be recalled, so it is refused rather than
+    silently expanded.
     """
-    parsed = getaddresses(list(values), strict=False)
-    return [
-        formatted
-        for display, address in parsed
-        if address
-        for formatted in (f"{display} <{address}>" if display else address,)
-    ]
+    flattened: list[str] = []
+    for value in values:
+        parsed = [(display, addr) for display, addr in get_addresses([value]) if addr]
+        if len(parsed) > 1 and "," not in value:
+            raise CliError(
+                f"{label} {value!r} is ambiguous: it parses as {len(parsed)} separate "
+                f"recipients ({', '.join(addr for _, addr in parsed)}). Separate "
+                "addresses with a comma, or pass the option once per recipient.",
+                code="ambiguous_address",
+            )
+        flattened += [
+            f"{display} <{addr}>" if display else addr for display, addr in parsed
+        ]
+    return flattened
 
 
 def bare_addresses(values: Sequence[str]) -> list[str]:
     """Just the addr-spec parts, which is what the SMTP envelope needs."""
-    return [address for _, address in getaddresses(list(values), strict=False) if address]
+    return [address for _, address in get_addresses(list(values)) if address]
 
 
 def _validate(values: Sequence[str], label: str) -> None:
+    """Check every outbound addr-spec.
+
+    Runs on already-split addresses, so it is the second line of defence behind
+    `split_addresses`: it also covers a `Draft` built in Python rather than from
+    the command line. Lenient parsing accepts `no-at-sign` as an address, which
+    is why the shape is checked explicitly rather than inferred from the parse
+    succeeding.
+    """
     for entry in values:
-        _, address = parseaddr(entry, strict=False)
-        if "@" not in address:
+        _, address = parse_address(entry)
+        if not _ADDR_SPEC_RE.match(address):
             raise CliError(
                 f"{label} {entry!r} is not an email address", code="invalid_address"
             )
+
+
+def serialize(msg: EmailMessage) -> bytes:
+    """Flatten a message the way `smtplib.send_message()` will.
+
+    Mirrors the flattening in `SMTP.send_message`, which is what makes
+    `send --dry-run` show the transmitted payload rather than a near-miss:
+    a `copy` with `Bcc`/`Resent-Bcc` removed, flattened by `BytesGenerator`
+    with CRLF line endings.
+
+    **The one divergence, stated rather than hidden:** if any address carries
+    non-ASCII and the server advertises SMTPUTF8, `send_message` reflattens with
+    a `utf8=True` policy. That depends on a capability only the live server can
+    report, so a preview computed without a socket cannot always be byte-exact.
+    `needs_smtputf8()` detects that case, and `send --dry-run` reports it in
+    `smtputf8` rather than letting the preview quietly overstate itself.
+    """
+    transmitted = copy.copy(msg)
+    del transmitted["Bcc"]
+    del transmitted["Resent-Bcc"]
+    with io.BytesIO() as buffer:
+        email.generator.BytesGenerator(buffer).flatten(transmitted, linesep="\r\n")
+        return buffer.getvalue()
+
+
+def needs_smtputf8(sender: str, recipients: Sequence[str]) -> bool:
+    """True when the envelope requires SMTPUTF8, and a preview cannot be exact."""
+    try:
+        "".join([sender, *recipients]).encode("ascii")
+    except UnicodeEncodeError:
+        return True
+    return False
 
 
 @dataclass(slots=True)

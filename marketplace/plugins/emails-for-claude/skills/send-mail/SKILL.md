@@ -46,9 +46,21 @@ Emerick" \
   --dry-run --json
 ```
 
-`--dry-run` builds the exact bytes that would go on the wire and **opens no
-socket**. It does not even need the password. What it prints under
-`.data.message` is what would be transmitted, not an approximation.
+`--dry-run` **opens no socket** and does not need the password. What it prints
+under `.data.message` is the serialized payload — `Bcc` already stripped, CRLF
+line endings — flattened exactly as `smtplib` will flatten it.
+
+Check `.data.exact`:
+
+- `true` — the preview is the transmitted payload, byte for byte.
+- `false` — an address carries non-ASCII, and `.data.smtputf8` is set. If the
+  server advertises SMTPUTF8, it reflattens with a UTF-8 policy, so the real
+  bytes may differ. Only the live server knows, so the preview says so instead
+  of pretending.
+
+Either way the headers, recipients, body and attachments shown are what would
+be sent. `.data.exact` is about byte-level fidelity, not about whether the
+preview is trustworthy for review.
 
 Body sources — pass exactly one:
 
@@ -73,6 +85,13 @@ claudeforanything emails-for-claude send --to marie@example.com \
 Recipients: `--to`, `--cc` and `--bcc` are each repeatable and each accept
 comma-separated lists, so `--to a@x --to "b@x, c@x"` works. `Bcc` is stripped
 from the transmitted headers but still receives — that is the point of it.
+
+One option value that would expand into several recipients **without a comma**
+is refused with `ambiguous_address`, because `--to 'a@x.com <b@evil.com>'`
+parses as two addresses and only one of them is visible to the person
+approving the draft. Semicolons get the same treatment — Outlook users write
+`a@x.com;b@y.com`, and it is refused rather than guessed. Use commas, or repeat
+the option.
 
 Other options: `--attach` (repeatable), `--html-file` to add an HTML alternative
 alongside the plain text, `--reply-to`, and `--header 'Name: value'` for anything

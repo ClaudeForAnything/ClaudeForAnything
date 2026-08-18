@@ -140,17 +140,29 @@ class Pop3:
                        code="message_not_found")
 
     def delete(self, numbers: Sequence[int]) -> None:
-        """Mark messages for deletion. Committed only when QUIT succeeds."""
+        """Mark messages for deletion. Committed only when QUIT succeeds.
+
+        `_dirty` is set *before* the first DELE, not after the last. POP3
+        commits marked deletions when QUIT succeeds, so a batch that fails
+        halfway has still marked everything before the failure; recording the
+        intent up front is what lets `close()` know it owes an RSET.
+        """
+        if not numbers:
+            return
+        self._dirty = True
         for number in numbers:
             try:
                 self._conn.dele(number)
             except poplib.error_proto as error:
                 raise CliError(f"POP3 DELE {number} failed: {error}",
                                code="pop3_error") from error
-        self._dirty = True
 
     def close(self, *, commit: bool) -> None:
-        """End the session, committing or discarding pending deletions."""
+        """End the session, committing or discarding pending deletions.
+
+        RSET before QUIT is what unmarks them: QUIT is the commit point, so
+        discarding has to happen first.
+        """
         try:
             if self._dirty and not commit:
                 self._conn.rset()
@@ -226,5 +238,10 @@ def connect(account: Account, password: str, *, timeout: float = DEFAULT_TIMEOUT
     session = Pop3(conn, account)
     try:
         yield session
-    finally:
-        session.close(commit=commit_deletes)
+    except BaseException:
+        # Deletions commit on QUIT, so a `finally` that always committed would
+        # make a half-finished batch permanent while the command reports
+        # failure. Anything that escapes the body discards instead.
+        session.close(commit=False)
+        raise
+    session.close(commit=commit_deletes)

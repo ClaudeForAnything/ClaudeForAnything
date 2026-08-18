@@ -14,6 +14,7 @@ Every command takes `--json`, and nothing here ever prints a password.
 
 from __future__ import annotations
 
+import base64
 import sys
 from dataclasses import replace
 from datetime import datetime
@@ -165,12 +166,22 @@ def _read_secret(prompt: str, *, from_stdin: bool) -> str:
 
 def _endpoints_from_preset(
     preset: presets_mod.Preset, protocol: str
-) -> tuple[Endpoint, Endpoint]:
+) -> tuple[Endpoint | None, Endpoint]:
+    """Endpoints implied by a preset. Incoming is None when the preset has none.
+
+    A preset with `pop3_host = None` is stating that the provider offers no
+    POP3, not inviting a substitute. Falling back to the IMAP host with the
+    default POP3 port would invent an endpoint — Proton Bridge, which serves
+    IMAP on 127.0.0.1:1143 and no POP3 at all, would come out as
+    `127.0.0.1:995 ssl` — and that is exactly the guess-presented-as-fact this
+    package refuses to make elsewhere. The caller turns None into an error that
+    names what to pass instead.
+    """
     if protocol == accounts_mod.POP3:
-        incoming = Endpoint(
-            host=preset.pop3_host or preset.imap_host,
-            port=preset.pop3_port,
-            security=preset.pop3_security,
+        incoming = (
+            Endpoint(preset.pop3_host, preset.pop3_port, preset.pop3_security)
+            if preset.pop3_host
+            else None
         )
     else:
         incoming = Endpoint(preset.imap_host, preset.imap_port, preset.imap_security)
@@ -289,7 +300,26 @@ def account_add(
         else:
             chosen, known_preset = presets_mod.resolve(address)
 
-        incoming, outgoing = _endpoints_from_preset(chosen, protocol)
+        derived, outgoing = _endpoints_from_preset(chosen, protocol)
+
+        if derived is None and imap_host is None:
+            raise CliError(
+                f"preset {chosen.key!r} ({chosen.label}) declares no POP3 server, so "
+                "there is nothing for --protocol pop3 to derive settings from. Pass "
+                "--imap-host (with --imap-port/--imap-security as needed) using the "
+                "settings your provider documents, or drop --protocol pop3 to use "
+                "IMAP.",
+                code="no_pop3_preset",
+            )
+
+        # When the preset had nothing, the explicit --imap-* options below are the
+        # entire source of truth; seed only so they have something to replace.
+        security = imap_security or presets_mod.SSL
+        incoming = derived or Endpoint(
+            host=imap_host or "",
+            port=imap_port or accounts_mod.default_port(protocol, security),
+            security=security,
+        )
 
         if imap_security is not None:
             incoming = replace(incoming, security=accounts_mod.validate_security(imap_security))
@@ -907,6 +937,19 @@ def inbox(
         )
 
         if resolved.protocol == accounts_mod.POP3:
+            # Answering a filtered query with an unfiltered maildrop inside a
+            # successful envelope is a wrong answer, not a degraded one. Human
+            # output could carry a caveat; `--json` has nowhere to put one that
+            # a caller is obliged to read, so this refuses instead.
+            if not criteria.is_empty():
+                raise CliError(
+                    f"account {resolved.name!r} uses POP3, which has no server-side "
+                    "search, so these filters cannot be applied: "
+                    f"{criteria.describe()}. Drop them to list the maildrop, or "
+                    "re-add the account over IMAP if the provider offers it.",
+                    code="filters_unsupported",
+                )
+
             with _pop3(account, timeout) as pop:
                 listing = pop.listing()
                 total = len(listing)
@@ -914,8 +957,8 @@ def inbox(
                 window = ordered[offset : offset + limit]
                 entries = pop.summaries(window)
             header = (
-                f"{resolved.name}  POP3 maildrop — {total} messages "
-                f"(showing {len(entries)}; POP3 has no server-side search, so filters are ignored)"
+                f"{resolved.name}  POP3 maildrop — {total} messages, "
+                f"showing {len(entries)}"
             )
             emit(
                 {
@@ -924,6 +967,7 @@ def inbox(
                     "folder": "INBOX",
                     "total": total,
                     "returned": len(entries),
+                    "filtered": False,
                     "messages": entries,
                 },
                 _listing_lines(entries, header),
@@ -1003,14 +1047,40 @@ def search(
         fail(error, as_json=as_json)
 
 
+def _safe_target(directory: Path, filename: str, taken: set[str]) -> Path:
+    """A writable path inside `directory` for an attacker-supplied filename.
+
+    Two separate hazards, both of which a message can trigger deliberately:
+
+    * **Escaping the directory.** Only the basename is used, so `../../.bashrc`
+      becomes `.bashrc` inside the target. A name that leaves nothing usable
+      after that — `..`, `/`, `.` — falls back to a generated one rather than
+      resolving to the directory itself, which would raise on write.
+    * **Collisions.** Two parts legitimately named `report.pdf` are common in
+      real mail. Writing both to one path silently destroys the first while the
+      command reports two files saved, so later names get a `-2`, `-3` suffix.
+    """
+    stem = Path(filename.replace("\\", "/")).name.strip()
+    if not stem or stem in {".", ".."}:
+        stem = "attachment"
+
+    candidate = Path(stem)
+    base, suffix = candidate.stem or "attachment", candidate.suffix
+    name, counter = f"{base}{suffix}", 2
+    while name.lower() in taken or (directory / name).exists():
+        name = f"{base}-{counter}{suffix}"
+        counter += 1
+    taken.add(name.lower())
+    return directory / name
+
+
 def _save_attachments(msg: EmailMessage, directory: Path) -> list[str]:
     directory.mkdir(parents=True, exist_ok=True)
     written: list[str] = []
+    taken: set[str] = set()
     for attachment in message_mod.attachments(msg):
         _, data = message_mod.attachment_bytes(msg, str(attachment.index))
-        # Attacker-controlled filename: keep the basename only, so a message
-        # claiming to be called ../../.bashrc cannot escape the directory.
-        target = directory / Path(attachment.filename).name
+        target = _safe_target(directory, attachment.filename, taken)
         target.write_bytes(data)
         written.append(str(target))
     return written
@@ -1059,7 +1129,7 @@ def read_email(
         else:
             with _imap(account, timeout) as session:
                 if output == "raw":
-                    raw = session.fetch_raw(folder, uid)
+                    raw = session.fetch_raw(folder, uid, mark_seen=mark_seen)
                     msg = message_mod.parse(raw)
                     meta = {}
                 else:
@@ -1067,14 +1137,25 @@ def read_email(
                     raw = b""
 
         if output == "raw":
+            # `raw` has to survive the trip byte for byte, so neither branch may
+            # decode it. A message with 8-bit octets in the body — legal under
+            # Content-Transfer-Encoding: 8bit — would otherwise come back full
+            # of U+FFFD and no longer be the message the server holds.
             if as_json:
                 emit(
-                    {"uid": uid, "folder": folder, "raw": raw.decode("utf-8", "replace")},
+                    {
+                        "uid": uid,
+                        "folder": folder,
+                        "encoding": "base64",
+                        "size": len(raw),
+                        "raw_base64": base64.b64encode(raw).decode("ascii"),
+                    },
                     [],
                     as_json=True,
                 )
             else:
-                sys.stdout.write(raw.decode("utf-8", "replace"))
+                sys.stdout.buffer.write(raw)
+                sys.stdout.buffer.flush()
             return
 
         written: list[str] = []
@@ -1167,7 +1248,7 @@ def attachments(
                         code="attachment_not_found",
                     ) from None
                 save.mkdir(parents=True, exist_ok=True)
-                target = save / Path(filename).name
+                target = _safe_target(save, filename, set())
                 target.write_bytes(data)
                 written = [str(target)]
             else:
@@ -1255,9 +1336,9 @@ def send_email(
             raise CliError(f"no such file: {html_file}", code="body_not_found")
 
         draft = smtp_mod.Draft(
-            to=smtp_mod.split_addresses(to or []),
-            cc=smtp_mod.split_addresses(cc or []),
-            bcc=smtp_mod.split_addresses(bcc or []),
+            to=smtp_mod.split_addresses(to or [], "--to"),
+            cc=smtp_mod.split_addresses(cc or [], "--cc"),
+            bcc=smtp_mod.split_addresses(bcc or [], "--bcc"),
             subject=subject,
             body=_read_body(body, body_file, body_stdin),
             html=html_file.read_text(encoding="utf-8") if html_file else None,
@@ -1270,6 +1351,10 @@ def send_email(
 
         msg = smtp_mod.compose(resolved, draft)
         recipients = draft.recipients()
+        # The transmitted payload, not `as_string()`: Bcc removed and CRLF line
+        # endings, exactly as smtplib will flatten it.
+        transmitted = smtp_mod.serialize(msg)
+        smtputf8 = smtp_mod.needs_smtputf8(resolved.address, recipients)
 
         summary = {
             "account": resolved.name,
@@ -1280,16 +1365,28 @@ def send_email(
             "subject": subject,
             "recipients": recipients,
             "attachments": [a.to_dict() for a in draft.attachments],
-            "size": len(msg.as_bytes()),
+            "size": len(transmitted),
         }
 
         if dry_run:
+            preview = transmitted.decode("utf-8", "replace")
+            caveat = (
+                "An address here is non-ASCII. If the server advertises SMTPUTF8 it "
+                "will reflatten with a utf8 policy, so the transmitted bytes may "
+                "differ from this preview."
+            )
             emit(
-                {**summary, "dry_run": True, "message": msg.as_string()},
+                {
+                    **summary,
+                    "dry_run": True,
+                    "smtputf8": smtputf8,
+                    "exact": not smtputf8,
+                    "message": preview,
+                },
                 [
                     "DRY RUN — nothing was sent.",
-                    "",
-                    msg.as_string(),
+                    *([f"note: {caveat}", ""] if smtputf8 else [""]),
+                    preview,
                 ],
                 as_json=as_json,
             )
@@ -1408,15 +1505,44 @@ def move(
     timeout: TimeoutOption = 30.0,
     as_json: JsonOption = False,
 ) -> None:
-    """Move messages to another mailbox."""
+    """Move messages to another mailbox.
+
+    On a server without RFC 6851 MOVE this is COPY plus a deletion of the
+    source, and that deletion is only performed when it can be scoped to these
+    UIDs. When it cannot, the copies arrive and the originals are left flagged
+    rather than risking other messages — reported, not silently.
+    """
     try:
         with _imap(account, timeout) as session:
             if create and destination not in {f.name for f in session.folders()}:
                 session.create(destination)
             method = session.move(folder, uids, destination)
+
+        incomplete = method == "copy+flag"
         emit(
-            {"folder": folder, "destination": destination, "uids": uids, "method": method},
-            [f"moved {len(uids)} message(s) from {folder} to {destination} ({method})"],
+            {
+                "folder": folder,
+                "destination": destination,
+                "uids": uids,
+                "method": method,
+                "sources_removed": not incomplete,
+            },
+            [
+                f"copied {len(uids)} message(s) from {folder} to {destination}"
+                if incomplete
+                else f"moved {len(uids)} message(s) from {folder} to {destination} ({method})",
+                *(
+                    [
+                        "",
+                        f"warning: the originals are still in {folder}, flagged deleted.",
+                        "  This server supports neither MOVE nor UIDPLUS, and other "
+                        "messages there are already flagged deleted, so removing "
+                        "them would have expunged those too.",
+                    ]
+                    if incomplete
+                    else []
+                ),
+            ],
             as_json=as_json,
         )
     except CliError as error:
@@ -1470,7 +1596,10 @@ def delete(
         with _imap(account, timeout) as session:
             if purge:
                 session.store(folder, uids, "+FLAGS", ["\\Deleted"])
-                session.expunge()
+                # purge() uses UID EXPUNGE, or refuses outright rather than
+                # falling back to a mailbox-wide EXPUNGE that would also erase
+                # messages some other client flagged.
+                session.purge(folder, uids)
                 target = None
                 method = "expunged"
             else:

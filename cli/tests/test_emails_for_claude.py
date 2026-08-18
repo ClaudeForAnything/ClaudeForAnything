@@ -11,7 +11,6 @@ never reaches stdout.
 from __future__ import annotations
 
 import json
-from contextlib import contextmanager
 from email.message import EmailMessage
 from pathlib import Path
 
@@ -21,110 +20,7 @@ from typer.testing import CliRunner
 from claudeforanything.main import app
 from claudeforanything.mail import imap as imap_mod
 
-from .conftest import payload
-
-PASSWORD = "correct-horse-battery-staple"
-
-
-def sample_message() -> bytes:
-    msg = EmailMessage()
-    msg["From"] = "Alice Example <alice@example.com>"
-    msg["To"] = "me@example.com"
-    msg["Subject"] = "Quarterly café report"
-    msg["Date"] = "Tue, 18 Aug 2026 10:23:11 +0200"
-    msg["Message-ID"] = "<abc@example.com>"
-    msg.set_content("The numbers are attached.\n")
-    msg.add_attachment(b"col\n1\n", maintype="text", subtype="csv", filename="numbers.csv")
-    return msg.as_bytes()
-
-
-class ScriptedImap:
-    """Enough of `imaplib.IMAP4` to drive every read command."""
-
-    capabilities = ("IMAP4REV1", "MOVE")
-
-    def __init__(self) -> None:
-        self.raw = sample_message()
-        self.commands: list[tuple] = []
-
-    def list(self, directory='""', pattern="*"):
-        return "OK", [
-            rb'(\HasNoChildren) "/" "INBOX"',
-            rb'(\HasNoChildren \Sent) "/" "Sent"',
-            rb'(\HasNoChildren \Trash) "/" "Trash"',
-        ]
-
-    def select(self, mailbox="INBOX", readonly=False):
-        self.commands.append(("select", mailbox, readonly))
-        return "OK", [b"1"]
-
-    def status(self, mailbox, names):
-        return "OK", [b'"INBOX" (MESSAGES 1 UNSEEN 1 RECENT 0)']
-
-    def expunge(self):
-        self.commands.append(("expunge",))
-        return "OK", [b"1"]
-
-    def append(self, mailbox, flags, date_time, message):
-        self.commands.append(("append", mailbox, message))
-        return "OK", [b"appended"]
-
-    def create(self, mailbox):
-        self.commands.append(("create", mailbox))
-        return "OK", [b"created"]
-
-    def uid(self, command, *args):
-        self.commands.append((command, *args))
-        if command == "SEARCH":
-            return "OK", [b"101"]
-        if command == "FETCH":
-            spec = args[1]
-            if "RFC822.SIZE" in spec:
-                return "OK", [
-                    b'1 (UID 101 FLAGS () RFC822.SIZE %d '
-                    b'INTERNALDATE "18-Aug-2026 10:23:11 +0200")' % len(self.raw)
-                ]
-            body = self.raw if "BODY.PEEK[]" in spec else self.raw.split(b"\r\n\r\n", 1)[0]
-            return "OK", [(b"1 (UID 101 BODY[] {%d}" % len(body), body), b")"]
-        return "OK", [b""]
-
-    def logout(self):
-        return "BYE", [b"bye"]
-
-
-@pytest.fixture
-def scripted(monkeypatch) -> ScriptedImap:
-    """Replace the IMAP connection with the scripted fake."""
-    fake = ScriptedImap()
-
-    @contextmanager
-    def connect(account, password, *, timeout=30.0):
-        assert password == PASSWORD, "the stored password must reach the transport"
-        yield imap_mod.Imap(fake, account)
-
-    monkeypatch.setattr(imap_mod, "connect", connect)
-    return fake
-
-
-@pytest.fixture
-def configured(runner: CliRunner, mail_home: Path, fake_keyring) -> None:
-    """One account, with a password in the fake keyring."""
-    added = runner.invoke(
-        app,
-        [
-            "emails-for-claude", "account", "add", "work",
-            "--address", "me@example.com", "--display-name", "Me",
-            "--imap-host", "imap.example.com", "--smtp-host", "smtp.example.com",
-            "--password-stdin", "--json",
-        ],
-        input=PASSWORD + "\n",
-    )
-    assert added.exit_code == 0, added.stdout
-
-
-def run(runner: CliRunner, *args: str, **kwargs):
-    return runner.invoke(app, ["emails-for-claude", *args], **kwargs)
-
+from .conftest import PASSWORD, ScriptedImap, payload, run
 
 # --------------------------------------------------------------------------
 # accounts

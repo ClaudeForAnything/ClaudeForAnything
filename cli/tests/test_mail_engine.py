@@ -208,8 +208,12 @@ HEADER_BLOB = (
 class FakeImap:
     """A scripted `imaplib.IMAP4`, replaying the byte shapes real servers send."""
 
-    def __init__(self, *, capabilities: tuple[str, ...] = ("IMAP4REV1", "MOVE")) -> None:
+    def __init__(self, *, capabilities: tuple[str, ...] = ("IMAP4REV1", "MOVE"),
+                 deleted: tuple[str, ...] = ()) -> None:
         self.capabilities = capabilities
+        #: UIDs the server reports for `SEARCH DELETED`, so a test can stage
+        #: messages another client already flagged.
+        self.deleted = deleted
         self.commands: list[tuple] = []
 
     def list(self, directory='""', pattern="*"):
@@ -235,7 +239,11 @@ class FakeImap:
     def uid(self, command, *args):
         self.commands.append((command, *args))
         if command == "SEARCH":
+            if b"DELETED" in args:
+                return "OK", [" ".join(self.deleted).encode("ascii")]
             return "OK", [b"101 102 103"]
+        if command == "EXPUNGE":
+            return "OK", [b"1"]
         if command == "FETCH":
             spec = args[1]
             if "RFC822.SIZE" in spec:
@@ -325,12 +333,75 @@ def test_move_prefers_the_atomic_move_command_when_available() -> None:
     assert any(cmd[0] == "MOVE" for cmd in fake.commands)
 
 
-def test_move_falls_back_to_copy_and_expunge_without_the_move_capability() -> None:
+def test_move_without_move_uses_uid_expunge_when_uidplus_is_available() -> None:
+    """UID EXPUNGE is scoped; plain EXPUNGE would not be."""
+    fake = FakeImap(capabilities=("IMAP4REV1", "UIDPLUS"))
+    live = imap_mod.Imap(fake, account())  # type: ignore[arg-type]
+    assert live.move("INBOX", ["101"], "Archive") == "copy+uid-expunge"
+
+    issued = [cmd[0] for cmd in fake.commands]
+    assert "COPY" in issued and "STORE" in issued
+    assert ("EXPUNGE", "101") in fake.commands
+    assert ("expunge",) not in fake.commands, "must not fall back to mailbox-wide EXPUNGE"
+
+
+def test_move_without_uidplus_expunges_only_when_nothing_else_is_flagged() -> None:
+    """Plain EXPUNGE is safe exactly when the flagged set is the set we asked for."""
+    fake = FakeImap(capabilities=("IMAP4REV1",), deleted=("101",))
+    live = imap_mod.Imap(fake, account())  # type: ignore[arg-type]
+    assert live.move("INBOX", ["101"], "Archive") == "copy+uid-expunge"
+    assert ("expunge",) in fake.commands
+
+
+def test_move_leaves_sources_flagged_rather_than_expunging_other_messages() -> None:
+    """The regression that matters: a scoped move must not become a mailbox purge.
+
+    Message 50 carries the Deleted flag, set by another client. A mailbox-wide
+    EXPUNGE issued to finish moving 101 would erase 50 as collateral,
+    permanently, from a command the user never framed as a deletion.
+    """
+    fake = FakeImap(capabilities=("IMAP4REV1",), deleted=("50", "101"))
+    live = imap_mod.Imap(fake, account())  # type: ignore[arg-type]
+
+    assert live.move("INBOX", ["101"], "Archive") == "copy+flag"
+    assert ("expunge",) not in fake.commands
+    assert not any(cmd[0] == "EXPUNGE" for cmd in fake.commands)
+
+
+def test_purge_uses_uid_expunge_when_available() -> None:
+    fake = FakeImap(capabilities=("IMAP4REV1", "UIDPLUS"))
+    live = imap_mod.Imap(fake, account())  # type: ignore[arg-type]
+    assert live.purge("INBOX", ["101", "102"]) is True
+    assert ("EXPUNGE", "101,102") in fake.commands
+
+
+def test_purge_refuses_rather_than_expunging_someone_elses_deleted_mail() -> None:
+    fake = FakeImap(capabilities=("IMAP4REV1",), deleted=("50", "101"))
+    live = imap_mod.Imap(fake, account())  # type: ignore[arg-type]
+
+    with pytest.raises(CliError) as caught:
+        live.purge("INBOX", ["101"])
+    assert caught.value.code == "unscoped_expunge"
+    assert "50" in caught.value.message
+    assert ("expunge",) not in fake.commands
+
+
+def test_purge_of_nothing_is_a_no_op() -> None:
     fake = FakeImap(capabilities=("IMAP4REV1",))
     live = imap_mod.Imap(fake, account())  # type: ignore[arg-type]
-    assert live.move("INBOX", ["101"], "Archive") == "copy+expunge"
-    issued = [cmd[0] for cmd in fake.commands]
-    assert "COPY" in issued and "STORE" in issued and ("expunge",) in fake.commands
+    assert live.purge("INBOX", []) is True
+    assert fake.commands == []
+
+
+def test_checking_for_collateral_does_not_reselect_the_mailbox_read_only() -> None:
+    """A read-only reselect would make the EXPUNGE that follows fail."""
+    fake = FakeImap(capabilities=("IMAP4REV1",), deleted=("101",))
+    live = imap_mod.Imap(fake, account())  # type: ignore[arg-type]
+    live.purge("INBOX", ["101"])
+    assert all(
+        readonly is False for _, _, readonly in
+        (cmd for cmd in fake.commands if cmd[0] == "select")
+    )
 
 
 def test_status_counts_are_parsed() -> None:
