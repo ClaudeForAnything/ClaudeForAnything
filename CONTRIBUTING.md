@@ -117,6 +117,10 @@ validate --strict` catches schema errors and manifest fields that are a
 character off from a real one, which would otherwise be ignored silently at
 load time.
 
+All three run automatically on every pull request
+([`.github/workflows/checks.yml`](.github/workflows/checks.yml)), on Linux and
+Windows. Run them locally first anyway — a red pull request costs a round trip.
+
 Machine-readable, if you are scripting it:
 
 ```bash

@@ -1,0 +1,105 @@
+# Copyright (C) 2026 Emerick @ ClaudeForAnything
+# SPDX-License-Identifier: GPL-3.0-or-later
+#
+# The three checks CONTRIBUTING.md asks a change to pass, run on every pull
+# request so the answer arrives before review rather than after merge.
+
+name: checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# A new push supersedes the run it interrupted. `main` is excluded so the
+# post-merge run always completes and the branch keeps an honest status.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  tests:
+    # Both platforms on purpose. The CLI carries real OS-conditional code —
+    # the config directory differs by platform, and main.py forces UTF-8 on
+    # stdout because the Windows default cannot encode box-drawing characters.
+    # Testing only Linux would leave exactly those branches unexercised.
+    name: tests (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # Pinned to the exact release: setup-uv publishes no moving major
+      # alias past v7, so `@v10` does not resolve even though v10.0.1 is
+      # the current release.
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          enable-cache: true
+          cache-dependency-glob: cli/uv.lock
+
+      - name: Install dependencies
+        working-directory: cli
+        run: uv sync --locked
+
+      - name: Run the test suite
+        working-directory: cli
+        env:
+          # The suite patches keyring for itself, but a runner that happens to
+          # expose a real credential store should not be reachable by accident.
+          PYTHON_KEYRING_BACKEND: keyring.backends.null.Keyring
+          # Any mail account state a test creates goes here, never to a real
+          # user config directory.
+          EMAILS_FOR_CLAUDE_HOME: ${{ runner.temp }}/emails-for-claude
+        run: uv run pytest -q
+
+  conventions:
+    # The ClaudeForAnything rules: naming, plugins on disk missing from the
+    # catalog, SKILL.md frontmatter that disagrees with its directory.
+    name: marketplace conventions
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      # Pinned to the exact release: setup-uv publishes no moving major
+      # alias past v7, so `@v10` does not resolve even though v10.0.1 is
+      # the current release.
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          enable-cache: true
+          cache-dependency-glob: cli/uv.lock
+
+      - name: Install the CLI
+        working-directory: cli
+        run: uv sync --locked
+
+      - name: claudeforanything check
+        working-directory: cli
+        run: uv run claudeforanything claude-for-plugin-authoring check --root .. --json
+
+  manifests:
+    # Schema errors and manifest fields a character off from a real one, which
+    # would otherwise be ignored silently at plugin load time. Different ground
+    # from `check`, which is why CONTRIBUTING asks for both.
+    name: plugin manifests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+
+      - name: Install the Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: claude plugin validate
+        run: claude plugin validate . --strict
