@@ -1,0 +1,45 @@
+# Line endings
+#
+# Everything is LF, in the repository and in the working tree. Git attributes
+# take precedence over core.autocrlf, so this holds regardless of what any
+# contributor has configured locally — including the core.autocrlf=true that
+# Git for Windows sets by default and that produces a "LF will be replaced by
+# CRLF" warning on every add.
+#
+# LF in the working tree matters beyond tidiness: shell scripts with CRLF fail
+# with confusing "bad interpreter" errors, and Python, Typer, and the Agent
+# Skills frontmatter parsers all expect LF.
+* text=auto eol=lf
+
+# Windows batch files are the exception: cmd.exe requires CRLF.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Explicit for the file types this repository actually contains, so intent is
+# readable rather than implied by the wildcard above.
+*.md    text eol=lf diff=markdown
+*.py    text eol=lf diff=python
+*.json  text eol=lf
+*.toml  text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.sh    text eol=lf
+*.lock  text eol=lf
+LICENSE text eol=lf
+
+# Never convert or diff these as text.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.webp  binary
+*.ico   binary
+*.pdf   binary
+*.zip   binary
+*.gz    binary
+*.woff  binary
+*.woff2 binary
+*.blend binary
+
+# Generated: keep it out of diffs by default and out of language statistics.
+uv.lock linguist-generated=true
