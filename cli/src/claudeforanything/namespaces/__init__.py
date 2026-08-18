@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import typer
 
-from . import plugin_authoring
+from . import emails_for_claude, plugin_authoring
 
 #: Namespace name -> (Typer app, one-line help). The name must match the plugin
 #: name in the marketplace catalog.
@@ -20,5 +20,9 @@ NAMESPACES: dict[str, tuple[typer.Typer, str]] = {
     "claude-for-plugin-authoring": (
         plugin_authoring.app,
         "Author, scaffold, and check plugins and Agent Skills.",
+    ),
+    "emails-for-claude": (
+        emails_for_claude.app,
+        "Read, search, and send email over IMAP, POP3 and SMTP.",
     ),
 }

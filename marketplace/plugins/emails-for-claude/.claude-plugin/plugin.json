@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "emails-for-claude",
+  "displayName": "Emails for Claude",
+  "version": "0.1.0",
+  "description": "Read, search, and send email over IMAP, POP3 and SMTP, with credentials kept in the OS keyring.",
+  "author": {
+    "name": "Emerick @ ClaudeForAnything",
+    "email": "emerick@claudeforanything.com"
+  },
+  "license": "GPL-3.0-or-later",
+  "keywords": [
+    "email",
+    "imap",
+    "pop3",
+    "smtp",
+    "inbox",
+    "keyring"
+  ]
+}

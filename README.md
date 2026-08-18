@@ -19,6 +19,7 @@ claude plugin install claude-for-plugin-authoring@claudeforanything
 | Plugin                        | What it does                                                         |
 | :---------------------------- | :------------------------------------------------------------------- |
 | `claude-for-plugin-authoring` | Author, scaffold, and review plugins and skills for this marketplace  |
+| `emails-for-claude`           | Read, search, and send email over IMAP, POP3 and SMTP                 |
 
 Standalone skills — for general tasks that need no plugin behind them — live in
 [`marketplace/skills/`](marketplace/skills/).
