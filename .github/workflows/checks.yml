@@ -36,7 +36,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: astral-sh/setup-uv@v10
+      # Pinned to the exact release: setup-uv publishes no moving major
+      # alias past v7, so `@v10` does not resolve even though v10.0.1 is
+      # the current release.
+      - uses: astral-sh/setup-uv@v10.0.1
         with:
           enable-cache: true
           cache-dependency-glob: cli/uv.lock
@@ -65,7 +68,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: astral-sh/setup-uv@v10
+      # Pinned to the exact release: setup-uv publishes no moving major
+      # alias past v7, so `@v10` does not resolve even though v10.0.1 is
+      # the current release.
+      - uses: astral-sh/setup-uv@v10.0.1
         with:
           enable-cache: true
           cache-dependency-glob: cli/uv.lock
