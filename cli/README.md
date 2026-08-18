@@ -27,7 +27,7 @@ uv run claudeforanything --help
 ```
 
 ```bash
-uv tool install ./cli       # or install it on your PATH
+uv tool install -e ./cli    # or install it on your PATH, editable
 ```
 
 ## Use
@@ -36,6 +36,11 @@ uv tool install ./cli       # or install it on your PATH
 claudeforanything                       # help
 claudeforanything list --json           # the plugin namespaces this CLI exposes
 claudeforanything version --json
+
+claudeforanything tree                  # depth 2, .gitignore respected
+claudeforanything tree --depth 3 --json
+claudeforanything tree --no-gitignore   # everything, like `eza --tree --level=2 -a`
+claudeforanything tree --ascii          # ASCII connectors
 
 claudeforanything claude-for-plugin-authoring --help
 claudeforanything claude-for-plugin-authoring check --json
@@ -72,3 +77,22 @@ match the plugin name in the marketplace catalog.
 ```bash
 uv run pytest
 ```
+
+## Why `tree` is built in
+
+`eza --tree` writes its listing to the Windows console handle rather than to
+stdout, so the output vanishes the moment it is piped or captured — which is
+exactly what an agent does. `eza --version` prints fine, which makes it look
+like the tool works. Git for Windows ships no `tree` binary either.
+
+Two things any replacement has to survive, and this one does:
+
+- Box-drawing characters cannot encode to cp1252, the default Windows stdout
+  encoding. `main.py` forces UTF-8 on stdout for every command; `--ascii` is the
+  fallback.
+- Ignored directories must not be descended into. `vendor_docs/` alone is 6,000
+  files, so honouring `.gitignore` is correctness, not polish.
+
+`claudeforanything tree --no-gitignore` reproduces `eza --tree --level=2 -a`
+line for line, which is what the tree block in `CLAUDE.md` expects.
+

@@ -79,8 +79,11 @@ uv run pytest
 Put the CLI on your PATH so the authoring commands work from the repo root:
 
 ```bash
-uv tool install ./cli
+uv tool install -e ./cli
 ```
+
+Use `-e`. Without it the install is a snapshot, and your edits to `cli/` will
+not show up until you reinstall — which looks like your change did nothing.
 
 ## Making a change
 
