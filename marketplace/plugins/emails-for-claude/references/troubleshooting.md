@@ -85,32 +85,41 @@ within a folder, unlike sequence numbers, which is why every command uses them.
 | Code | Cause |
 | :--- | :---- |
 | `confirmation_required` | `--purge`, or POP3 deletion, without `--yes` |
-| `unscoped_expunge` | The only available EXPUNGE would erase other messages too |
+| `unscoped_expunge` | The server has no UIDPLUS, so it cannot expunge specific messages |
 | `no_trash_folder` | No Trash mailbox found and none configured |
 | `already_trash` | Deleting from the Trash mailbox itself |
 
-**`unscoped_expunge` is a refusal, not a failure — nothing was destroyed.**
+**`unscoped_expunge` is a refusal, not a failure — nothing was changed at all.**
 
 Plain IMAP `EXPUNGE` is mailbox-wide: it permanently removes *every* message
-carrying the `\Deleted` flag in the selected mailbox, not only the UIDs the
-command was given. RFC 4315 `UID EXPUNGE` is the scoped version, and servers
-advertise it as `UIDPLUS`.
+carrying the `\Deleted` flag in the selected mailbox at the moment it runs, not
+only the UIDs the command was given. RFC 4315 `UID EXPUNGE` is the scoped
+version, and servers advertise it as the `UIDPLUS` capability.
 
-So on a server without UIDPLUS, when other messages in the folder are already
-flagged deleted — usually by another client — the CLI refuses rather than taking
-them with it. Options, in order of preference:
+Without UIDPLUS there is no safe way to do it, so the CLI refuses. Checking the
+mailbox first and expunging only if nothing else is flagged **is not a fix**:
+RFC 3501 lets other connections change flags while a mailbox is selected, so
+between the check and the EXPUNGE another client can flag a message and lose it:
 
-1. Drop `--purge` and let `delete` move the messages to Trash.
-2. Clear the other flags first: `flag <uids> --remove '\Deleted'`, using
-   `search --query DELETED` to find them.
-3. Accept that the server cannot do a scoped purge, and do it from a client
-   that can.
+```text
+us:    SEARCH DELETED  ->  101          (only our target)
+them:  STORE 777 +FLAGS (\Deleted)
+us:    EXPUNGE                          (erases 101 and 777)
+```
 
-`move` hits the same limitation and degrades instead of refusing, because the
-copy at the destination has already succeeded by that point. Check
+Avoiding that race is precisely why `UID EXPUNGE` exists. The rule here is
+absolute: **a UID-scoped request never triggers a mailbox-wide EXPUNGE.**
+
+What to do instead:
+
+1. Drop `--purge` and let `delete` move the messages to Trash. This is
+   recoverable and works everywhere.
+2. Empty the Trash from a client that supports UIDPLUS, or through webmail.
+
+`move` hits the same limitation but degrades rather than refusing, because by
+then the copy at the destination has already succeeded. Check
 `.data.sources_removed`: when it is `false`, the originals are still in the
-source folder with the `\Deleted` flag set, and the operation is a copy rather
-than a move.
+source folder carrying `\Deleted`, and the operation was a copy, not a move.
 
 ## Sending
 

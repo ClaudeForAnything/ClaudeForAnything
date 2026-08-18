@@ -476,11 +476,11 @@ def test_purging_requires_explicit_confirmation(
     result = run(runner, "delete", "101", "--purge", "--json")
     assert result.exit_code == 1
     assert payload(result.stdout)["error"]["code"] == "confirmation_required"
-    assert not any(cmd == ("expunge",) for cmd in scripted.commands)
+    assert not any(cmd[0] == "EXPUNGE" for cmd in scripted.commands)
 
     confirmed = run(runner, "delete", "101", "--purge", "--yes", "--json")
     assert confirmed.exit_code == 0, confirmed.stdout
-    assert ("expunge",) in scripted.commands
+    assert ("EXPUNGE", "101") in scripted.commands
 
 
 def test_deleting_from_trash_itself_is_refused(

@@ -137,10 +137,11 @@ claudeforanything emails-for-claude delete 101 --purge --yes
 
 Two outcomes worth reading rather than assuming:
 
-- `--purge` can fail with `unscoped_expunge`. That means the server lacks
-  UIDPLUS and other messages in the folder are already flagged deleted, so the
-  only available EXPUNGE would erase those too. Nothing was destroyed. Move to
-  Trash instead, or deal with the other flagged messages first.
+- `--purge` fails with `unscoped_expunge` on a server that does not advertise
+  UIDPLUS. Such a server offers only a mailbox-wide EXPUNGE, which would also
+  erase anything else flagged deleted — including messages flagged by another
+  client. **Nothing was changed**, not even the flags. Drop `--purge` and move
+  them to Trash instead.
 - `move` reports `"sources_removed": false` when the same limitation applies.
   The copies arrived at the destination and the originals are **still in the
   source folder**, flagged. Say so — do not describe it as a completed move.

@@ -1535,9 +1535,9 @@ def move(
                     [
                         "",
                         f"warning: the originals are still in {folder}, flagged deleted.",
-                        "  This server supports neither MOVE nor UIDPLUS, and other "
-                        "messages there are already flagged deleted, so removing "
-                        "them would have expunged those too.",
+                        "  This server supports neither MOVE nor UIDPLUS, so it offers "
+                        "no way to remove them without a mailbox-wide EXPUNGE that "
+                        "would also erase anything else flagged deleted there.",
                     ]
                     if incomplete
                     else []
@@ -1595,10 +1595,19 @@ def delete(
 
         with _imap(account, timeout) as session:
             if purge:
+                if "UIDPLUS" not in session.capabilities:
+                    # Checked before flagging anything, so a refusal leaves the
+                    # mailbox exactly as it was.
+                    raise CliError(
+                        "this server does not advertise UIDPLUS, so it offers no "
+                        "way to expunge specific messages — only a mailbox-wide "
+                        "EXPUNGE, which would also permanently erase anything "
+                        f"else in {folder!r} that is flagged deleted, including "
+                        "messages flagged by another client. Nothing was "
+                        "changed. Drop --purge to move them to Trash instead.",
+                        code="unscoped_expunge",
+                    )
                 session.store(folder, uids, "+FLAGS", ["\\Deleted"])
-                # purge() uses UID EXPUNGE, or refuses outright rather than
-                # falling back to a mailbox-wide EXPUNGE that would also erase
-                # messages some other client flagged.
                 session.purge(folder, uids)
                 target = None
                 method = "expunged"

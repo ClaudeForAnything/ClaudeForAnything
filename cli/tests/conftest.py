@@ -104,7 +104,9 @@ class ScriptedImap:
     """
 
     def __init__(self) -> None:
-        self.capabilities: tuple[str, ...] = ("IMAP4REV1", "MOVE")
+        # UIDPLUS by default because most real servers advertise it. Tests that
+        # exercise the degraded paths set `capabilities` explicitly.
+        self.capabilities: tuple[str, ...] = ("IMAP4REV1", "MOVE", "UIDPLUS")
         self.deleted: tuple[str, ...] = ()
         self.raw = sample_message()
         self.commands: list[tuple] = []

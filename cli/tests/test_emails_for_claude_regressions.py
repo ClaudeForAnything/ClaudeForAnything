@@ -229,17 +229,36 @@ def test_an_attachment_named_dot_dot_does_not_resolve_to_the_directory(
 # --------------------------------------------------------------------------
 
 
-def test_purge_refuses_when_it_would_erase_other_flagged_messages(
+def test_purge_refuses_without_uidplus_rather_than_racing(
     runner: CliRunner, configured, scripted: ScriptedImap
 ) -> None:
-    """Plain EXPUNGE removes everything flagged deleted, not just our UIDs."""
+    """Plain EXPUNGE removes everything flagged deleted, not just our UIDs.
+
+    Checking `SEARCH DELETED` first does not make it safe: another connection
+    may flag a message between the check and the EXPUNGE, so without UID
+    EXPUNGE there is no correct answer other than refusing.
+    """
     scripted.capabilities = ("IMAP4REV1",)
-    scripted.deleted = ("50", "101")
 
     result = run(runner, "delete", "101", "--purge", "--yes", "--json")
     assert result.exit_code == 1
-    assert payload(result.stdout)["error"]["code"] == "unscoped_expunge"
+    body = payload(result.stdout)["error"]
+    assert body["code"] == "unscoped_expunge"
+    assert "UIDPLUS" in body["message"]
     assert ("expunge",) not in scripted.commands
+
+
+def test_a_refused_purge_leaves_the_mailbox_untouched(
+    runner: CliRunner, configured, scripted: ScriptedImap
+) -> None:
+    """The capability check runs before anything is flagged.
+
+    Flagging first and refusing afterwards would leave the messages carrying
+    \\Deleted as a side effect of a command that reported failure.
+    """
+    scripted.capabilities = ("IMAP4REV1",)
+    run(runner, "delete", "101", "--purge", "--yes", "--json")
+    assert not any(cmd[0] == "STORE" for cmd in scripted.commands)
 
 
 def test_purge_uses_uid_expunge_when_the_server_supports_it(
@@ -252,14 +271,27 @@ def test_purge_uses_uid_expunge_when_the_server_supports_it(
     assert ("expunge",) not in scripted.commands
 
 
-def test_purge_still_works_when_nothing_else_is_flagged(
+def test_deleting_to_trash_still_works_without_uidplus(
+    runner: CliRunner, configured, scripted: ScriptedImap
+) -> None:
+    """The recoverable default must not be collateral damage from the refusal."""
+    scripted.capabilities = ("IMAP4REV1", "MOVE")
+    result = run(runner, "delete", "101", "--json")
+    assert result.exit_code == 0, result.stdout
+    assert payload(result.stdout)["data"]["moved_to"] == "Trash"
+
+
+def test_move_without_uidplus_reports_that_the_originals_remain(
     runner: CliRunner, configured, scripted: ScriptedImap
 ) -> None:
     scripted.capabilities = ("IMAP4REV1",)
-    scripted.deleted = ("101",)
-    result = run(runner, "delete", "101", "--purge", "--yes", "--json")
+    result = run(runner, "move", "101", "--to", "Archive", "--json")
     assert result.exit_code == 0, result.stdout
-    assert ("expunge",) in scripted.commands
+
+    data = payload(result.stdout)["data"]
+    assert data["sources_removed"] is False
+    assert data["method"] == "copy+flag"
+    assert ("expunge",) not in scripted.commands
 
 
 # --------------------------------------------------------------------------

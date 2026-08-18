@@ -106,9 +106,11 @@ Two IMAP behaviours are worth knowing because they are deliberate refusals:
 
 - `delete --purge`, and the no-MOVE path of `move`, need a *scoped* expunge.
   Plain `EXPUNGE` is mailbox-wide and would erase every message flagged deleted,
-  not just the ones named. With `UIDPLUS` the CLI uses `UID EXPUNGE`; without
-  it, it proceeds only when nothing else is flagged, and otherwise refuses or
-  degrades to a copy rather than widening the blast radius.
+  not just the ones named — and checking first does not help, because another
+  client can flag something between the check and the expunge. So the CLI uses
+  RFC 4315 `UID EXPUNGE` when the server advertises `UIDPLUS`, and otherwise
+  refuses (`delete --purge`) or degrades to a copy (`move`). A UID-scoped
+  request never triggers a mailbox-wide EXPUNGE.
 - Outbound recipients are parsed leniently but checked strictly. One `--to`
   value that expands into several addresses without a comma is refused, because
   `a@x.com <b@evil.com>` is two recipients and only one is visible to whoever
