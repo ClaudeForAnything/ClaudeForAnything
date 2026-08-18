@@ -80,8 +80,9 @@ Name the action, never the product it replaces. `claude-for-photoshop` is wrong;
 
 ## Contributing
 
-Install `claude-for-plugin-authoring` and use its skills — they encode the
-conventions, the schemas, and the verification steps.
+See [CONTRIBUTING.md](../CONTRIBUTING.md) at the repository root for the full
+procedure, and [GOVERNANCE.md](../GOVERNANCE.md) for what gets accepted into the
+catalog.
 
 ```bash
 claudeforanything claude-for-plugin-authoring new-plugin <name> --description "..."

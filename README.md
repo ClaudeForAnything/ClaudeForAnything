@@ -71,19 +71,20 @@ cli/                                  # the claudeforanything CLI
 
 ## Contributing
 
-Install `claude-for-plugin-authoring` and use its skills — they encode the
-conventions, the schemas, and the verification steps.
+Read [CONTRIBUTING.md](CONTRIBUTING.md) first — it covers the three rules, the
+checks a change has to pass, and the DCO sign-off (`git commit -s`).
+
+The short version: use the tooling, then run the checks.
 
 ```bash
 claudeforanything claude-for-plugin-authoring new-plugin <name> --description "..."
-```
 
-Before opening a pull request:
-
-```bash
 claudeforanything claude-for-plugin-authoring check
 claude plugin validate . --strict
+cd cli && uv run pytest
 ```
+
+Who decides what, and what gets into the catalog: [GOVERNANCE.md](GOVERNANCE.md).
 
 ## License
 
