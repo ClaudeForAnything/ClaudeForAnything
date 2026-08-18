@@ -1,7 +1,7 @@
 ---
 name: new-skill
 description: Write an agentskills.io-compliant Agent Skill, either inside a ClaudeForAnything plugin or standalone under marketplace/skills/. Use when adding or rewriting a SKILL.md, when a skill is not firing when it should, or when deciding what belongs in SKILL.md versus references/.
-license: MIT
+license: GPL-3.0-or-later
 compatibility: Designed for the ClaudeForAnything repository. Requires the claudeforanything CLI on PATH (uv tool install ./cli).
 ---
 

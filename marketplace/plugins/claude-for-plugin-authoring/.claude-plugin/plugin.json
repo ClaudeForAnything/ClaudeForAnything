@@ -2,13 +2,13 @@
   "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
   "name": "claude-for-plugin-authoring",
   "displayName": "Claude for Plugin Authoring",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Author, scaffold, and review ClaudeForAnything plugins and Agent Skills.",
   "author": {
     "name": "Emerick @ ClaudeForAnything",
     "email": "emerick@claudeforanything.com"
   },
-  "license": "MIT",
+  "license": "GPL-3.0-or-later",
   "keywords": [
     "plugin",
     "skill",

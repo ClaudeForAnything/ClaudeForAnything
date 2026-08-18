@@ -1,7 +1,7 @@
 ---
 name: new-plugin
 description: Create a new plugin in the ClaudeForAnything marketplace, from naming through manifest, skills, CLI surface, and catalog registration. Use when adding a plugin under marketplace/plugins/, when asked to "make a plugin for X", or when deciding whether something should be claude-for-X or X-for-claude.
-license: MIT
+license: GPL-3.0-or-later
 compatibility: Designed for the ClaudeForAnything repository. Requires the claudeforanything CLI on PATH (uv tool install ./cli) and the Claude Code CLI for validation.
 ---
 
@@ -97,7 +97,7 @@ Add an entry to `.claude-plugin/marketplace.json` at the **repository root**:
     "name": "Emerick @ ClaudeForAnything",
     "email": "emerick@claudeforanything.com"
   },
-  "license": "MIT",
+  "license": "GPL-3.0-or-later",
   "category": "<category>",
   "keywords": ["..."],
   "tags": ["..."]

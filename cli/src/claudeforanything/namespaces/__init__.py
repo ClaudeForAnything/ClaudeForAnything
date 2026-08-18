@@ -1,3 +1,5 @@
+# Copyright (C) 2026 Emerick @ ClaudeForAnything
+# SPDX-License-Identifier: GPL-3.0-or-later
 """The registry of plugin namespaces exposed by the CLI.
 
 Every plugin in the marketplace gets one namespace here, named exactly as the

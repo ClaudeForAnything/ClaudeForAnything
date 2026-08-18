@@ -87,4 +87,9 @@ claude plugin validate . --strict
 
 ## License
 
-MIT
+[GNU General Public License v3.0 or later](LICENSE).
+
+ClaudeForAnything is free software: you may use, study, share, and modify it. If
+you distribute it, modified or not, the recipients get the same freedoms and the
+corresponding source. See [choosealicense.com/licenses/gpl-3.0](https://choosealicense.com/licenses/gpl-3.0/)
+for a plain-language summary.

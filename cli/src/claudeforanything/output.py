@@ -1,3 +1,5 @@
+# Copyright (C) 2026 Emerick @ ClaudeForAnything
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Output handling shared by every command.
 
 Every command in this CLI accepts `--json`, because Claude composes shell

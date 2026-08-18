@@ -1,7 +1,7 @@
 ---
 name: review-plugin
 description: Review a ClaudeForAnything plugin or the whole marketplace against the naming conventions, the plugin.json and marketplace.json schemas, the CLI-first rule, and the Agent Skill spec. Use before committing changes under marketplace/, when a plugin fails to load, or when a skill does not appear after install.
-license: MIT
+license: GPL-3.0-or-later
 compatibility: Designed for the ClaudeForAnything repository. Requires the claudeforanything CLI on PATH (uv tool install ./cli) and the Claude Code CLI for validation.
 ---
 

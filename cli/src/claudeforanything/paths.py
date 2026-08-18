@@ -1,3 +1,5 @@
+# Copyright (C) 2026 Emerick @ ClaudeForAnything
+# SPDX-License-Identifier: GPL-3.0-or-later
 """Locating the marketplace the CLI is operating on.
 
 The CLI is installed globally, so unlike the script it replaces it cannot find

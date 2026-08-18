@@ -1,3 +1,5 @@
+# Copyright (C) 2026 Emerick @ ClaudeForAnything
+# SPDX-License-Identifier: GPL-3.0-or-later
 """The `claudeforanything` root command.
 
 Every plugin, tool, and MCP server in the marketplace is reachable here, because

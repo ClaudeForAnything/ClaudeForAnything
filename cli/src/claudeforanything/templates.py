@@ -1,3 +1,5 @@
+# Copyright (C) 2026 Emerick @ ClaudeForAnything
+# SPDX-License-Identifier: GPL-3.0-or-later
 """File bodies emitted when scaffolding a plugin or a skill."""
 
 from __future__ import annotations
@@ -18,7 +20,7 @@ def skill_md(name: str, description: str) -> str:
     return f"""---
 name: {name}
 description: {description}
-license: MIT
+license: GPL-3.0-or-later
 ---
 
 # {name}
@@ -47,7 +49,7 @@ def plugin_json(name: str, description: str) -> str:
         "version": "0.1.0",
         "description": description,
         "author": AUTHOR,
-        "license": "MIT",
+        "license": "GPL-3.0-or-later",
         "keywords": [],
     }
     return json.dumps(manifest, indent=2) + "\n"

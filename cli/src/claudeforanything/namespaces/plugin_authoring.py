@@ -1,3 +1,5 @@
+# Copyright (C) 2026 Emerick @ ClaudeForAnything
+# SPDX-License-Identifier: GPL-3.0-or-later
 """`claudeforanything claude-for-plugin-authoring` — author and check marketplace content."""
 
 from __future__ import annotations
